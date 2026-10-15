@@ -226,6 +226,7 @@
       <div><label id="lblMaxLen">Max annealing length (nt)</label><input type="number" id="maxLen" value="45"></div>
       <div><label>Min matched flank each side of mutation (nt)</label><input type="number" id="minFlank" value="10"></div>
       <div><label id="lblSearch">Fusion-site search range (nt)</label><input type="number" id="searchRange" value="6"></div>
+      <div><label>Max Tm difference between primers (°C)</label><input type="number" id="maxDTm" value="1" step="0.1" min="0"></div>
       <div class="gib-only"><label>Min mutation → overlap-edge distance when inside overlap (nt)</label><input type="number" id="ovFlank" value="6"></div>
     </div>
     <div class="row" style="margin-top:12px">
@@ -568,19 +569,30 @@ function tuneArm(direction, pos, c, target, minL, maxL){
   }
   return bestL;
 }
+function maxDTm(){ const x=parseFloat(v('maxDTm')); return isNaN(x)?1:Math.max(0,x); }
+// Choose forward/reverse arm lengths jointly so the two annealing Tm's differ by <= maxDTm.
+// Among all valid (lf,lr) pairs prefer both arms at/above the target Tm, then closest to target, then shortest.
+// Returns {lf,lr,tmF,tmR} or null if no pair satisfies the ΔTm limit (or an arm runs off a linear end).
 function tuneBoth(pF,pR,side){
-  const c=cond(), target=+v('targetTm'), minL=+v('minLen'), maxL=+v('maxLen');
-  let lf=tuneArm('F', pF, c, target, minL, maxL);
-  let lr=tuneArm('R', pR, c, target, minL, maxL);
-  if(lf===null||lr===null) return null;
+  const c=cond(), target=+v('targetTm'), minL=+v('minLen'), maxL=+v('maxLen'), lim=maxDTm();
+  let lminF=minL, lminR=minL;
   if(changedPos.length){
     const lo=Math.min(...changedPos), hi=Math.max(...changedPos), mf=minFlankV();
-    // extend the mutation-bearing arm so there are >= minFlank matched bases 3' of the mutation too
-    if(side==='F') lf=Math.min(maxL, Math.max(lf, dist(pF,hi)+1+mf));
-    else if(side==='R') lr=Math.min(maxL, Math.max(lr, dist(lo,pR-1)+1+mf));
+    // mutation-bearing arm needs >= minFlank matched bases 3' of the mutation too
+    if(side==='F') lminF=Math.max(lminF, dist(pF,hi)+1+mf);
+    else if(side==='R') lminR=Math.max(lminR, dist(lo,pR-1)+1+mf);
   }
-  if(subMut(pF,lf)===null || subMut(pR-lr,lr)===null) return null;
-  return {lf,lr};
+  const tF={}, tR={};
+  for(let L=lminF; L<=maxL; L++){ const a=subMut(pF,L); if(a===null) break; tF[L]=calcTm(a,c); }
+  for(let L=lminR; L<=maxL; L++){ const x=subMut(pR-L,L); if(x===null) break; tR[L]=calcTm(revcomp(x),c); }
+  let best=null, bestCost=Infinity;
+  for(const lf of Object.keys(tF)) for(const lr of Object.keys(tR)){
+    const a=tF[lf], b=tR[lr];
+    if(Math.abs(a-b)>lim+1e-9) continue;
+    const cost=3*Math.max(0,target-a)+3*Math.max(0,target-b)+Math.max(0,a-target)+Math.max(0,b-target)+0.05*(+lf + +lr);
+    if(cost<bestCost){ bestCost=cost; best={lf:+lf,lr:+lr,tmF:a,tmR:b}; }
+  }
+  return best;
 }
 
 /* shared: render the candidate table + auto-pick first (candidates already ranked best-first) */
@@ -603,9 +615,10 @@ function selectReg(r, tr){
   autoTuneAndRender(r);
 }
 function noCands(){
-  alert('No valid design near this codon. Mark the template circular (plasmid), widen the search range, '+
-        'relax the overlap / flank parameters, or pick a more internal codon.');
+  alert('No valid design near this codon with annealing Tm\'s within '+maxDTm()+' °C of each other. Try widening the min/max annealing length range, raising the max Tm difference, mark the template circular (plasmid), widen the search range, '+
+        'relaxing the overlap / flank parameters, or picking a more internal codon.');
 }
+function tmPair(tb){ return `${tb.tmF.toFixed(1)} / ${tb.tmR.toFixed(1)} °C (Δ${Math.abs(tb.tmF-tb.tmR).toFixed(1)})`; }
 function tagList(flags){ return flags.length?flags.join(' '):'<span class="tag ok">OK</span>'; }
 
 /* ---------- Golden Gate candidates ---------- */
@@ -628,7 +641,8 @@ function buildGG(){
       if(side==='R' && (vstart+4+minL>L)) return;
     }
     const oh=ohIdx.map(i=>SEQ[i]).join('');          // clean original template
-    cands.push({mode:'gg', v:vstart, side, gap, oh, pF:vstart+4, pR:vstart, ovStart:vstart, ovLen:4,
+    const tb=tuneBoth(vstart+4,vstart,side); if(!tb) return;   // need Tm-matched arms
+    cands.push({mode:'gg', v:vstart, side, gap, oh, pF:vstart+4, pR:vstart, ovStart:vstart, ovLen:4, tb,
       tm:calcTm(oh,c), dg:dG37(oh), gc:gcPct(oh), pal:isPalindrome(oh)});
   }
   // "gap" = matched bases between the fusion site and the mutation (the mutation's 5' flank in that
@@ -640,14 +654,14 @@ function buildGG(){
   const ext=r=>(r.gc===0||r.gc===100)?1:0;
   cands.sort((a,b)=>(a.pal-b.pal)||(ext(a)-ext(b))||(a.gap-b.gap)||(a.dg-b.dg));
   showCandidates(cands,
-    ['Rank','Overhang (fwd / rev)','Mutation in','5′ flank','GC','Overhang Tm','ΔG°37','Flags'],
+    ['Rank','Overhang (fwd / rev)','Mutation in','5′ flank','GC','Overhang Tm','ΔG°37','Anneal Tm F / R (ΔTm)','Flags'],
     (r,i)=>{
       const flags=[];
       if(r.pal) flags.push('<span class="tag bad">Palindrome</span>');
       if(r.gc===0||r.gc===100) flags.push('<span class="tag warn">Extreme GC</span>');
       return `<td>${i+1}</td><td><code>${r.oh}</code> / <code>${revcomp(r.oh)}</code></td>
         <td>${r.side==='F'?'Fwd':'Rev'} primer</td><td>${r.gap}</td><td>${r.gc}%</td>
-        <td>${r.tm.toFixed(1)} °C</td><td>${r.dg.toFixed(1)}</td><td>${tagList(flags)}</td>`;
+        <td>${r.tm.toFixed(1)} °C</td><td>${r.dg.toFixed(1)}</td><td>${tmPair(r.tb)}</td><td>${tagList(flags)}</td>`;
     },
     'Choose fusion site (overhang)',
     `Candidates are clean 4-nt fusion sites flanking the mutation on either side — the
@@ -676,6 +690,7 @@ function buildGibson(){
   function consider(type,s,n,gap){
     const ov=subMut(s,n); if(ov===null) return;
     if(!circ && (subMut(s+n,minL)===null || subMut(s-minL,minL)===null)) return;
+    const tb=tuneBoth(s+n,s,type); if(!tb) return;              // need Tm-matched extensions
     const tm=calcTm(ov,c), gc=100*gcFrac(ov);
     const capF=isGC(ov[0]), capL=isGC(ov[n-1]);
     const capOK = G.cap==='both'?(capF&&capL): G.cap==='last'?capL : true;
@@ -684,7 +699,7 @@ function buildGibson(){
     if(gc<G.gcMin-1e-9) viol.push('GC low'); if(gc>G.gcMax+1e-9) viol.push('GC high');
     if(!capOK) viol.push('No G/C cap');
     const score=viol.length*100 + Math.abs(tm-(G.tmMin+G.tmMax)/2) + Math.abs(gc-50)/3 + (type==='I'?0:gap*0.2);
-    per[type].push({mode:'gib', type, side:type, s, n, gap, ov, tm, gc, capF, capL, capOK, viol, score,
+    per[type].push({mode:'gib', type, side:type, s, n, gap, ov, tb, tm, gc, capF, capL, capOK, viol, score,
       pF:s+n, pR:s, ovStart:s, ovLen:n, dg:dG37(ov),
       e5: type==='I'?lo-s:null, e3: type==='I'?(s+n-1)-hi:null});
   }
@@ -705,7 +720,7 @@ function buildGibson(){
   cands.sort((a,b)=>a.score-b.score);
   const label={I:'Overlap (both primers)',F:'Fwd 3′ extension',R:'Rev 3′ extension'};
   showCandidates(cands,
-    ['Rank','Overlap (5′→3′, sense strand)','Len','Tm','GC','3′ cap','Mutation in','Edge dist.','Flags'],
+    ['Rank','Overlap (5′→3′, sense strand)','Len','Tm','GC','3′ cap','Mutation in','Edge dist.','Ext. Tm F / R (ΔTm)','Flags'],
     (r,i)=>{
       const ovHTML=`<code>${r.ov.slice(0,-1)}<span class="seg-cap">${r.ov.slice(-1)}</span></code>`;
       const capTxt=`${r.ov[0]}…${r.ov[r.n-1]}`;
@@ -713,7 +728,7 @@ function buildGibson(){
       if(!r.viol.length) flags.push('<span class="tag ok">Meets goals</span>');
       const edge = r.type==='I' ? `5′ ${r.e5} / 3′ ${r.e3}` : `${r.gap}`;
       return `<td>${i+1}</td><td>${ovHTML}</td><td>${r.n}</td><td>${r.tm.toFixed(1)} °C</td>
-        <td>${Math.round(r.gc)}%</td><td>${capTxt} ${r.capOK?'✓':'✗'}</td><td>${label[r.type]}</td><td>${edge}</td>
+        <td>${Math.round(r.gc)}%</td><td>${capTxt} ${r.capOK?'✓':'✗'}</td><td>${label[r.type]}</td><td>${edge}</td><td>${tmPair(r.tb)}</td>
         <td>${flags.join(' ')}</td>`;
     },
     'Choose Gibson overlap',
@@ -755,7 +770,6 @@ function buildSimple(){
     ['Rank','Junction (nt | nt)','Mutation in','5′ flank','Fwd len / Tm','Rev len / Tm','ΔTm','3′ clamp F / R','Flags'],
     (r,i)=>{
       const flags=[];
-      if(r.dTm>3) flags.push('<span class="tag warn">ΔTm &gt; 3</span>');
       if(!r.clF||!r.clR) flags.push('<span class="tag warn">No 3′ G/C</span>');
       const mutIn = r.side==='N'?'— (no mutation)':(r.side==='F'?'Fwd':'Rev')+' primer';
       return `<td>${i+1}</td><td>${mod(r.j-1,L)+1} | ${mod(r.j,L)+1}</td><td>${mutIn}</td>
@@ -765,8 +779,8 @@ function buildSimple(){
     },
     'Choose junction (flanking primers)',
     `Each row is a junction where the two primers sit back-to-back (forward primer starts at the junction and reads right;
-    reverse primer ends at the junction and reads left). No restriction sites or overlaps are added. Ranked by 3′ G/C clamps,
-    forward/reverse Tm match, and smallest 5′ flank. ${changedPos.length?'“5′ flank” = matched bases between the junction and the mutation.':
+    reverse primer ends at the junction and reads left). No restriction sites or overlaps are added. Only junctions whose primers have annealing Tm's within the max ΔTm are shown, ranked by 3′ G/C clamps,
+    Tm match, and smallest 5′ flank. ${changedPos.length?'“5′ flank” = matched bases between the junction and the mutation.':
     'No mutation selected: junctions across the chosen codon are listed.'}`);
 }
 
@@ -774,7 +788,7 @@ function buildSimple(){
 function autoTuneAndRender(r){
   const tb=tuneBoth(r.pF, r.pR, r.side);
   if(!tb){
-    alert('Not enough flanking template for the annealing arms at this site (linear template near an end). '+
+    alert('No Tm-matched annealing arms (ΔTm ≤ '+maxDTm()+' °C) fit at this site (linear template near an end, or length limits too tight). '+
           'Mark the template circular or choose a more internal codon.'); return; }
   $('lenF').value=tb.lf; $('lenR').value=tb.lr;
   design={mode:r.mode, side:r.side, pF:r.pF, pR:r.pR, ovStart:r.ovStart, ovLen:r.ovLen};
@@ -835,7 +849,7 @@ function renderPrimers(){
   }
   segF=segF.concat([{cls:'seg-anneal',text:annF,idx:idxF}]);
   segR=segR.concat([{cls:'seg-anneal',text:annR,idx:idxR}]);
-  const annLabel = d.mode==='gib'?'3′ extension (unique)':'Annealing';
+  const annLabel = d.mode==='gib'?'Annealing (3′ extension)':'Annealing';
   const matchF=tailIdxF.concat(idxF), matchR=tailIdxR.concat(idxR);
   const carryF=matchF.some(i=>changedPos.includes(i)), carryR=matchR.some(i=>changedPos.includes(i));
 
@@ -843,6 +857,10 @@ function renderPrimers(){
      segF, annF, tmF, annLabel, matchF, extra, legend, carryF);
   $('cardR').innerHTML=primerCard('Reverse primer'+(carryR?' — carries the mutation':(changedPos.length?' (clean)':'')),
      segR, annR, tmR, annLabel, matchR, extra, legend, carryR);
+  const dT=Math.abs(tmF-tmR);
+  note=`<div class="infobox" style="margin-bottom:8px"><b>Annealing Tm:</b> forward ${tmF.toFixed(1)} °C · reverse ${tmR.toFixed(1)} °C · <b>ΔTm ${dT.toFixed(1)} °C</b>${d.mode==='gib'?' (3′ extensions; the overlap is excluded)':''}</div>`+note;
+  if(dT>maxDTm()+1e-9)
+    note+=`<div class="warnbox">Annealing Tm's differ by ${dT.toFixed(1)} °C (limit ${maxDTm()} °C) with the current manual lengths — re-select a candidate row to restore matched Tm's.</div>`;
   $('modenote').innerHTML=note;
 
   const full=segs=>segs.map(s=>s.text).join('');
@@ -884,9 +902,9 @@ function primerCard(title,segs,ann,tm,annLabel,matchIdx,extra,legend,carriesMut)
     <div class="primerout">${body}</div>
     <div style="margin-top:8px">
       <span class="stat">Total length <b>${full.length} nt</b></span>
-      <span class="stat">${annLabel} <b>${ann.length} nt</b></span>
-      <span class="stat">${annLabel} Tm <b>${tm.toFixed(1)} °C</b></span>
-      <span class="stat">${annLabel} GC <b>${gcPct(ann)}%</b></span>
+      <span class="stat">Annealing length <b>${ann.length} nt</b></span>
+      <span class="stat">Annealing Tm <b>${tm.toFixed(1)} °C</b></span>
+      <span class="stat">Annealing GC <b>${gcPct(ann)}%</b></span>
       <span class="stat">3′ end <b>${ann[ann.length-1]}</b> ${lastGC?'<span class="tag ok">G/C clamp</span>':'<span class="tag warn">no clamp</span>'}</span>
       ${flankStat}
       ${extra}
