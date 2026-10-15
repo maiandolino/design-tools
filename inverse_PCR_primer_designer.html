@@ -1,0 +1,945 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Inverse-PCR Primer Design Tool</title>
+<style>
+  :root{
+    --bg:#0f1419; --panel:#1a212b; --panel2:#222c38; --ink:#e6edf3; --muted:#8b98a9;
+    --accent:#4da3ff; --green:#3fb950; --orange:#e3a008; --red:#f85149; --blue:#58a6ff;
+    --purple:#bc8cff; --border:#30363d;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+       background:var(--bg);color:var(--ink);font-size:14px;line-height:1.45}
+  header{padding:16px 22px;border-bottom:1px solid var(--border);background:var(--panel)}
+  header h1{margin:0;font-size:18px}
+  header p{margin:4px 0 0;color:var(--muted);font-size:12.5px;max-width:900px}
+  .wrap{max-width:1180px;margin:0 auto;padding:18px 22px 60px}
+  .panel{background:var(--panel);border:1px solid var(--border);border-radius:10px;
+         padding:16px 18px;margin-bottom:16px}
+  .panel h2{margin:0 0 12px;font-size:14px;letter-spacing:.3px;text-transform:uppercase;color:var(--accent)}
+  .panel h2 .step{display:inline-block;width:20px;height:20px;line-height:20px;text-align:center;
+    background:var(--accent);color:#07111f;border-radius:50%;font-size:12px;margin-right:8px;font-weight:700}
+  label{display:block;font-size:12px;color:var(--muted);margin-bottom:3px}
+  input[type=text],input[type=number],textarea,select{
+    background:var(--panel2);border:1px solid var(--border);color:var(--ink);
+    border-radius:6px;padding:7px 9px;font-size:13px;width:100%;font-family:inherit}
+  textarea{font-family:ui-monospace,Menlo,Consolas,monospace;resize:vertical;min-height:90px;font-size:12.5px}
+  .grid{display:grid;gap:12px}
+  .g2{grid-template-columns:repeat(2,1fr)}
+  .g3{grid-template-columns:repeat(3,1fr)}
+  .g4{grid-template-columns:repeat(4,1fr)}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
+  button{background:var(--accent);color:#07111f;border:none;border-radius:6px;padding:8px 14px;
+    font-size:13px;font-weight:600;cursor:pointer}
+  button.sec{background:var(--panel2);color:var(--ink);border:1px solid var(--border)}
+  button:hover{filter:brightness(1.08)}
+  button:disabled{opacity:.4;cursor:not-allowed}
+  .muted{color:var(--muted);font-size:12px}
+  .seqbox{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;line-height:1.45;
+    background:#0b0f14;border:1px solid var(--border);border-radius:8px;padding:12px;
+    overflow-x:auto;white-space:nowrap;user-select:none}
+  .seqline{white-space:pre}
+  .seqline.aatrack{color:#7f8c9b;line-height:1.3}
+  .seqline.baseline{margin-bottom:6px}
+  .seqline .num{color:#566;display:inline-block;width:64px;text-align:right;margin-right:14px;user-select:none}
+  .base,.aa{display:inline-block;width:9.6px;text-align:center}
+  .aa{overflow:visible;white-space:nowrap}
+  .rn{font-size:8px;color:#5f6b7a;vertical-align:super;margin-left:.5px}
+  .base{cursor:pointer;border-radius:2px}
+  .base:hover{background:#2d3744}
+  .aamut{color:var(--red);font-weight:700}
+  .aamut .rn{color:var(--red)}
+  .aatrack{line-height:1.6}
+  .aacur{background:rgba(88,166,255,.438);border-radius:2px}
+  .b-mut{background:var(--red);color:#fff;font-weight:700}
+  .b-oh{background:var(--blue);color:#06121f;font-weight:700}
+  .b-fwd{background:rgba(63,185,80,.32);color:#9ff0a8}
+  .b-rev{background:rgba(227,160,8,.32);color:#ffd479}
+  .b-codon{background:rgba(88, 166, 255, 0.438)}
+  .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:11.5px;color:var(--muted);margin-top:8px}
+  .legend span{display:inline-flex;align-items:center;gap:5px}
+  .chip{width:12px;height:12px;border-radius:3px;display:inline-block}
+  table{width:100%;border-collapse:collapse;font-size:12.5px}
+  th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--border)}
+  th{color:var(--muted);font-weight:600;font-size:11.5px;text-transform:uppercase;letter-spacing:.3px}
+  tr.sel{background:rgba(77,163,255,.12)}
+  tr.cand{cursor:pointer}
+  tr.cand:hover{background:rgba(255,255,255,.04)}
+  .tag{font-size:10.5px;padding:1px 6px;border-radius:10px;font-weight:600}
+  .tag.ok{background:rgba(63,185,80,.2);color:var(--green)}
+  .tag.warn{background:rgba(227,160,8,.2);color:var(--orange)}
+  .tag.bad{background:rgba(248,81,73,.2);color:var(--red)}
+  u.mut{text-decoration:underline;text-decoration-color:var(--red);text-decoration-thickness:2px}
+  .primerout{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;
+    background:#0b0f14;border:1px solid var(--border);border-radius:8px;padding:12px;
+    word-break:break-all;line-height:1.7;margin-top:6px}
+  .seg-filler{color:var(--muted)}
+  .seg-site{color:var(--purple);font-weight:700}
+  .seg-spacer{color:#7d8aa0}
+  .seg-oh{color:var(--blue);font-weight:700;background:rgba(88,166,255,.12)}
+  .seg-anneal{color:var(--green)}
+  .seg-mut{text-decoration:underline;text-decoration-color:var(--red);text-decoration-thickness:2px}
+  .pcard{background:var(--panel2);border:1px solid var(--border);border-radius:8px;padding:12px;margin-top:10px}
+  .pcard h3{margin:0 0 6px;font-size:13px}
+  .stat{display:inline-block;margin-right:18px;font-size:12px}
+  .stat b{color:var(--ink);font-size:13px}
+  .hidden{display:none}
+  .warnbox{background:rgba(227,160,8,.1);border:1px solid var(--orange);color:#ffd479;
+    border-radius:6px;padding:8px 10px;font-size:12px;margin-top:8px}
+  .copybtn{font-size:11px;padding:3px 9px;margin-left:8px;background:var(--panel);border:1px solid var(--border);color:var(--ink)}
+  details{margin-top:10px}
+  summary{cursor:pointer;color:var(--accent);font-size:12.5px}
+  code{background:#0b0f14;padding:1px 5px;border-radius:4px;font-size:12px}
+  .seg-ov{color:var(--blue);font-weight:700;background:rgba(88,166,255,.12)}
+  .seg-cap{border-bottom:2px solid var(--orange)}
+  .infobox{background:rgba(88,166,255,.08);border:1px solid var(--blue);color:#a9d1ff;
+    border-radius:6px;padding:8px 10px;font-size:12px;margin-top:8px}
+  .tag.info{background:rgba(88,166,255,.2);color:var(--blue)}
+</style>
+</head>
+<body>
+<header>
+  <h1>Inverse-PCR Primer Design Tool</h1>
+  <p>Design divergent primers for site-directed mutagenesis via inverse PCR with three re-circularization
+  strategies: <b>Golden Gate</b> (Type IIS site + 4-nt overhang), <b>Gibson</b> (overlapping 15–25 bp
+  5′ ends) or <b>Simple</b> (flanking primers, no added DNA). Nearest-neighbor Tm (SantaLucia 1998 +
+  Owczarzy 2008 salt correction) is computed for annealing regions, overhangs and Gibson overlaps.</p>
+</header>
+
+<div class="wrap">
+
+  <!-- STEP 1 -->
+  <div class="panel">
+    <h2><span class="step">1</span>Template sequence</h2>
+    <label>Paste your gene / plasmid sequence (DNA, top strand 5'→3'). Non-ACGT characters are stripped.</label>
+    <textarea id="seqinput" placeholder="e.g. ATGAGC..."></textarea>
+    <div class="row" style="margin-top:10px">
+      <button id="loadbtn">Load sequence</button>
+      <label style="display:flex;align-items:center;gap:6px;color:var(--ink);margin:0">
+        <input type="checkbox" id="circular" style="width:auto"> Circular (plasmid)
+      </label>
+      <div class="muted" id="seqstats"></div>
+    </div>
+  </div>
+
+  <!-- STEP 2 -->
+  <div class="panel hidden" id="panel2">
+    <h2><span class="step">2</span>Select a codon to mutate</h2>
+    <p class="muted">Set the reading frame, then click any base in the template map below to select its codon.
+    Choose the target amino acid and a synonymous codon — options are ranked by how few base changes they
+    require (fewer changes = shorter mutation span = easier overhang/overlap). In <b>Simple</b> mode you can
+    leave the codon unchanged to just place flanking primers at that position (no mutation).</p>
+    <div class="row">
+      <div>
+        <label>Reading frame (1=default)</label>
+        <input type="number" id="frame" min="1" value="1" style="width:150px">
+      </div>
+      <div>
+        <label>Target codon #</label>
+        <input type="number" id="codonnum" min="1" style="width:140px">
+      </div>
+      <div>
+        <label>Original codon</label>
+        <input type="text" id="origcodon" readonly style="width:130px">
+      </div>
+      <div>
+        <label>New amino acid</label>
+        <select id="newaa" style="width:170px"></select>
+      </div>
+      <div>
+        <label>New codon</label>
+        <select id="newcodon" style="width:210px"></select>
+      </div>
+    </div>
+    <div id="aaout" class="muted" style="margin-top:10px"></div>
+  </div>
+
+  <!-- STEP 3 -->
+  <div class="panel hidden" id="panel3">
+    <h2><span class="step">3</span>Design mode, PCR conditions &amp; parameters</h2>
+
+    <div class="grid g2" style="margin-bottom:14px">
+      <div>
+        <label>Primer design mode</label>
+        <select id="mode">
+          <option value="gg">Golden Gate — Type IIS site + 4-nt overhang</option>
+          <option value="gib">Gibson — overlapping 5′ ends (15–25 bp)</option>
+          <option value="simple">Simple inverse PCR — flanking, no added DNA</option>
+        </select>
+      </div>
+      <div class="muted" id="modedesc" style="align-self:end"></div>
+    </div>
+
+    <div class="grid g4">
+      <div><label>Oligo conc. (µM)</label><input type="number" id="c_oligo" value="0.5" step="0.05"></div>
+      <div><label>Monovalent Na⁺+K⁺ (mM)</label><input type="number" id="c_mon" value="50" step="5"></div>
+      <div><label>Mg²⁺ (mM)</label><input type="number" id="c_mg" value="2" step="0.5"></div>
+      <div><label>dNTPs (mM)</label><input type="number" id="c_dntp" value="0.8" step="0.1"></div>
+    </div>
+
+    <div class="grid g4" style="margin-top:12px">
+      <div><label id="lblTargetTm">Target annealing Tm (°C)</label><input type="number" id="targetTm" value="60" step="1"></div>
+      <div class="gg-only"><label>Filler / nuclease-binding bases</label><input type="text" id="filler" value="TGCATG"></div>
+      <div class="gg-only"><label>Golden Gate recognition site</label>
+        <select id="site">
+          <option value="GGTCTC">BsaI (GGTCTC)</option>
+          <option value="CGTCTC">Esp3I/BsmBI (CGTCTC)</option>
+        </select>
+      </div>
+      <div class="gg-only"><label>Spacer (between site &amp; overhang)</label><input type="text" id="spacer" value="A"></div>
+    </div>
+
+    <!-- Gibson overlap goals -->
+    <div class="gib-only" style="margin-top:14px">
+      <div class="muted" style="margin-bottom:6px"><b>Gibson overlap design goals</b> (defaults: 15–25 bp, Tm 55–67 °C, 40–60 % GC, G/C cap at 3′ end)</div>
+      <div class="grid g4">
+        <div><label>Overlap min length (bp)</label><input type="number" id="ovMin" value="15"></div>
+        <div><label>Overlap max length (bp)</label><input type="number" id="ovMax" value="25"></div>
+        <div><label>Overlap Tm min (°C)</label><input type="number" id="ovTmMin" value="55" step="1"></div>
+        <div><label>Overlap Tm max (°C)</label><input type="number" id="ovTmMax" value="67" step="1"></div>
+      </div>
+      <div class="grid g4" style="margin-top:12px">
+        <div><label>Overlap GC min (%)</label><input type="number" id="ovGcMin" value="40"></div>
+        <div><label>Overlap GC max (%)</label><input type="number" id="ovGcMax" value="60"></div>
+        <div><label>G/C cap at 3′ end</label>
+          <select id="ovCap">
+            <option value="both">Both primers' overlap 3′ ends (first &amp; last base G/C)</option>
+            <option value="last">Forward-strand 3′ end only (last base G/C)</option>
+            <option value="none">Off</option>
+          </select>
+        </div>
+        <div><label>Mutation placement</label>
+          <select id="gibPlace">
+            <option value="any">Any (overlap or 3′ extension)</option>
+            <option value="in">Inside overlap (both primers carry it)</option>
+            <option value="out">Outside overlap (one primer carries it)</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid g4" style="margin-top:12px">
+      <div><label id="lblMinLen">Min annealing length (nt)</label><input type="number" id="minLen" value="20"></div>
+      <div><label id="lblMaxLen">Max annealing length (nt)</label><input type="number" id="maxLen" value="45"></div>
+      <div><label>Min matched flank each side of mutation (nt)</label><input type="number" id="minFlank" value="10"></div>
+      <div><label id="lblSearch">Fusion-site search range (nt)</label><input type="number" id="searchRange" value="6"></div>
+      <div class="gib-only"><label>Min mutation → overlap-edge distance when inside overlap (nt)</label><input type="number" id="ovFlank" value="6"></div>
+    </div>
+    <div class="row" style="margin-top:12px">
+      <button id="designbtn">Design Primers ▶</button>
+    </div>
+    <details>
+      <summary>How the primers are built &amp; how Tm is computed</summary>
+      <div class="gg-only">
+      <p class="muted" style="margin-top:8px">
+      <b>Golden Gate.</b> Each primer is built 5'→3' as:
+      <code>[filler][recognition site][spacer (1 nt)][overhang (4 nt)][annealing]</code>.
+      For example, BsaI-HFv2 cuts <code>GGTCTC(1/5)</code>, so after the recognition site and 1 spacer nt the next 4 nt
+      become the 5' overhang. The forward and reverse overhangs are exact reverse-complements of the same
+      clean 4-bp fusion site, so the linear inverse-PCR product re-circularizes seamlessly. The mutation is
+      placed in the <i>annealing region</i> of one primer (never in the overhang), with at least
+      "Min matched flank" bases of perfectly-matched template on <i>both</i> sides of the mutation so the
+      mismatched primer still anneals well. The fusion site is searched from that minimum out to
+      +"Fusion-site search range" to find a suitable overhang.</p>
+      </div>
+      <div class="gib-only">
+      <p class="muted" style="margin-top:8px">
+      <b>Gibson.</b> Both primers are pure template sequence whose <i>5′ ends overlap</i> by 15–25 bp:
+      <code>Fwd = [overlap][3′ extension →]</code> and <code>Rev = [rev-comp of overlap][← 3′ extension]</code>.
+      The shared overlap is duplicated at both ends of the linear inverse-PCR product, so Gibson
+      (5′ exonuclease / polymerase / ligase) joins the ends into the circular plasmid with no scar. Candidate overlaps
+      are scanned (every length and position that satisfies your mutation-placement rule) and scored against your goals
+      (length, Tm, GC %, G/C cap — all editable). The mutation can sit <i>inside the overlap</i> (both primers carry it,
+      QuikChange-like) or <i>in the 3′ extension</i> of one primer (the overlap stays wild-type, with ≥ "Min matched flank"
+      matched bases between the overlap and the mutation). The 3′ extension is length-tuned to the target annealing Tm.
+      A G/C cap means the overlap starts and ends with G/C, so the 3′ ends that anneal after exonuclease chew-back are GC-clamped.</p>
+      </div>
+      <div class="simple-only">
+      <p class="muted" style="margin-top:8px">
+      <b>Simple inverse PCR.</b> The two primers are back-to-back (divergent) at a junction in the template and carry
+      <i>no additional DNA</i> — each is purely annealing sequence. The mutation sits inside one primer with ≥ "Min matched flank"
+      matched bases on both sides. Arms are length-tuned to the target Tm, and junctions are ranked by Tm match between the two
+      primers and a 3′ G/C clamp. The product is a blunt linear amplicon: order the primers 5′-phosphorylated (or phosphorylate
+      with PNK) and re-circularize with blunt ligation / KLD after DpnI digestion.</p>
+      </div>
+      <p class="muted"><b>Tm</b> uses SantaLucia 1998 nearest-neighbor ΔH/ΔS with Owczarzy 2008 monovalent+divalent salt
+      correction; free Mg²⁺ = [Mg²⁺] − [dNTP]. Annealing Tm is evaluated on the primer's own bases (the perfect-match Tm against
+      the product made in cycle 2+); the reported <b>5′/3′ matched flanks</b> are the runs of perfectly-matched bases on each
+      side of the mutation that pair with the original template in cycle 1.</p>
+    </details>
+  </div>
+
+  <!-- STEP 4: candidates -->
+  <div class="panel hidden" id="panel4">
+    <h2><span class="step">4</span><span id="regtitle">Choose fusion site (overhang)</span></h2>
+    <p class="muted" id="regintro"></p>
+    <table id="regtable">
+      <thead></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <!-- Sequence viewer -->
+  <div class="panel hidden" id="panelView">
+    <h2>Template map</h2>
+    <div class="seqbox" id="seqview"></div>
+    <div class="legend">
+      <span><i class="chip" style="background:#7f8c9b"></i> Amino Acids</span>
+      <span><i class="chip" style="background:var(--red)"></i> Modified Base(s)</span>
+      <span><i class="chip" style="background:rgba(88,166,255,.4)"></i> Selected Codon</span>
+      <span><i class="chip" style="background:var(--blue)"></i> <span id="legOh">4-nt Overhang</span></span>
+      <span><i class="chip" style="background:rgba(63,185,80,.5)"></i> Forward Annealing</span>
+      <span><i class="chip" style="background:rgba(227,160,8,.5)"></i> Reverse Annealing</span>
+    </div>
+  </div>
+
+  <!-- STEP 5: output -->
+  <div class="panel hidden" id="panel5">
+    <h2><span class="step">5</span>Primers (5'->3')</h2>
+    <div class="row" style="margin-bottom:8px">
+      <div>
+        <label id="lblLenF">Forward annealing length</label>
+        <input type="number" id="lenF" style="width:120px">
+      </div>
+      <div>
+        <label id="lblLenR">Reverse annealing length</label>
+        <input type="number" id="lenR" style="width:120px">
+      </div>
+      <div class="muted" style="padding-bottom:8px">Lengths auto-tuned to target Tm; adjust to fine-tune.</div>
+    </div>
+
+    <div class="pcard" id="cardF"></div>
+    <div class="pcard" id="cardR"></div>
+    <div id="modenote"></div>
+
+    <details>
+      <summary>Copy as FASTA</summary>
+      <div class="primerout" id="orderfmt" style="white-space:pre-wrap"></div>
+    </details>
+  </div>
+
+</div>
+
+<script>
+"use strict";
+
+/* ---------- nearest-neighbor thermodynamics (SantaLucia 1998 unified) ---------- */
+const NN = {
+  AA:{h:-7.6,s:-21.3}, TT:{h:-7.6,s:-21.3},
+  AT:{h:-7.2,s:-20.4}, TA:{h:-7.2,s:-21.3},
+  CA:{h:-8.5,s:-22.7}, TG:{h:-8.5,s:-22.7},
+  GT:{h:-8.4,s:-22.4}, AC:{h:-8.4,s:-22.4},
+  CT:{h:-7.8,s:-21.0}, AG:{h:-7.8,s:-21.0},
+  GA:{h:-8.2,s:-22.2}, TC:{h:-8.2,s:-22.2},
+  CG:{h:-10.6,s:-27.2}, GC:{h:-9.8,s:-24.4},
+  GG:{h:-8.0,s:-19.9}, CC:{h:-8.0,s:-19.9}
+};
+const R_GAS = 1.987; // cal/(mol*K)
+
+function thermo(seq){
+  let dH=0, dS=0;
+  for(let i=0;i<seq.length-1;i++){ const nn=NN[seq.substr(i,2)]; dH+=nn.h; dS+=nn.s; }
+  for(const b of [seq[0], seq[seq.length-1]]){
+    if(b==='G'||b==='C'){ dH+=0.1; dS+=-2.8; } else { dH+=2.3; dS+=4.1; }
+  }
+  return {dH,dS};
+}
+function tm1M(seq, oligoMolar){
+  const {dH,dS}=thermo(seq);
+  return (dH*1000)/(dS + R_GAS*Math.log(oligoMolar/4)); // Kelvin, 1 M Na reference
+}
+function calcTm(seq, cond){
+  if(seq.length<2) return NaN;
+  const N=seq.length;
+  const fGC=(seq.match(/[GC]/g)||[]).length/N;
+  const tmK=tm1M(seq, cond.oligo);
+  let invTm=1/tmK;
+  const mon=cond.mon;
+  let mg=cond.mg - cond.dntp; if(mg<0) mg=0;
+  const lnMg= mg>0 ? Math.log(mg):0;
+  function monovalentOnly(){
+    const ln=Math.log(mon);
+    return 1/tmK + ((4.29*fGC - 3.95)*1e-5)*ln + 9.40e-6*ln*ln;
+  }
+  if(mg<=0){
+    if(mon>0) invTm=monovalentOnly();
+  } else {
+    const ratio = mon>0 ? Math.sqrt(mg)/mon : Infinity;
+    if(mon>0 && ratio<0.22){
+      invTm=monovalentOnly();
+    } else {
+      let a=3.92e-5,b=-9.11e-6,c=6.26e-5,d=1.42e-5,e=-4.82e-4,f=5.25e-4,g=8.31e-5;
+      if(mon>0 && ratio<6){
+        const ln=Math.log(mon);
+        a=a*(0.843 - 0.352*Math.sqrt(mon)*ln);
+        d=d*(1.279 - 4.03e-3*ln - 8.03e-3*ln*ln);
+        g=g*(0.486 - 0.258*ln + 5.25e-3*ln*ln*ln);
+      }
+      invTm=1/tmK + a + b*lnMg + fGC*(c + d*lnMg) + (1/(2*(N-1)))*(e + f*lnMg + g*lnMg*lnMg);
+    }
+  }
+  return 1/invTm - 273.15;
+}
+function dG37(seq){ const {dH,dS}=thermo(seq); return dH - 310.15*dS/1000; } // kcal/mol at 37 °C
+
+/* ---------- sequence + codon utilities ---------- */
+const COMP={A:'T',T:'A',G:'C',C:'G'};
+function revcomp(s){ let r=''; for(let i=s.length-1;i>=0;i--) r+=COMP[s[i]]; return r; }
+function gcFrac(s){ return (s.match(/[GC]/g)||[]).length/s.length; }
+function gcPct(s){ return Math.round(100*gcFrac(s)); }
+function isPalindrome(s){ return s===revcomp(s); }
+function countDiff(a,b){ let n=0; for(let i=0;i<a.length;i++) if(a[i]!==b[i]) n++; return n; }
+const isGC=b=>b==='G'||b==='C';
+const mod=(a,n)=>((a%n)+n)%n;
+
+const CODON={
+TTT:'F',TTC:'F',TTA:'L',TTG:'L',CTT:'L',CTC:'L',CTA:'L',CTG:'L',
+ATT:'I',ATC:'I',ATA:'I',ATG:'M',GTT:'V',GTC:'V',GTA:'V',GTG:'V',
+TCT:'S',TCC:'S',TCA:'S',TCG:'S',CCT:'P',CCC:'P',CCA:'P',CCG:'P',
+ACT:'T',ACC:'T',ACA:'T',ACG:'T',GCT:'A',GCC:'A',GCA:'A',GCG:'A',
+TAT:'Y',TAC:'Y',TAA:'*',TAG:'*',CAT:'H',CAC:'H',CAA:'Q',CAG:'Q',
+AAT:'N',AAC:'N',AAA:'K',AAG:'K',GAT:'D',GAC:'D',GAA:'E',GAG:'E',
+TGT:'C',TGC:'C',TGA:'*',TGG:'W',CGT:'R',CGC:'R',CGA:'R',CGG:'R',
+AGT:'S',AGC:'S',AGA:'R',AGG:'R',GGT:'G',GGC:'G',GGA:'G',GGG:'G'};
+const AA2CODON={};
+for(const [c,a] of Object.entries(CODON)){ (AA2CODON[a]=AA2CODON[a]||[]).push(c); }
+const AA_ORDER=[['A','Ala'],['R','Arg'],['N','Asn'],['D','Asp'],['C','Cys'],['Q','Gln'],
+['E','Glu'],['G','Gly'],['H','His'],['I','Ile'],['L','Leu'],['K','Lys'],['M','Met'],
+['F','Phe'],['P','Pro'],['S','Ser'],['T','Thr'],['W','Trp'],['Y','Tyr'],['V','Val'],['*','Stop']];
+
+/* ---------- state ---------- */
+let SEQ='';            // cleaned template top strand
+let mutCodonNum=null;  // 1-based codon number in frame
+let mutStart=null;     // 0-based index of codon start in SEQ
+let newCodon=null;     // 3-nt replacement codon
+let mutatedSeq=null;   // SEQ with codon replaced
+let changedPos=[];     // 0-based SEQ indices that differ
+let MODE='gg';         // 'gg' | 'gib' | 'simple'
+let design=null;       // {mode, side, pF, pR, ovStart, ovLen, oh}
+
+const $=id=>document.getElementById(id);
+const v=id=>$(id).value.trim();
+function frameIdx(){ return Math.max(0,(parseInt(v('frame'),10)||1)-1); }
+function cond(){
+  return { oligo:(+v('c_oligo'))*1e-6, mon:(+v('c_mon'))*1e-3,
+           mg:(+v('c_mg'))*1e-3, dntp:(+v('c_dntp'))*1e-3 };
+}
+function isCirc(){ return $('circular').checked; }
+// extract a window from a given strand; wraps around the origin when the template is circular
+function subFrom(seq,start,len){
+  const L=seq.length;
+  if(isCirc()){ let r=''; for(let k=0;k<len;k++) r+=seq[mod(start+k,L)]; return r; }
+  if(start<0||start+len>L) return null;
+  return seq.substr(start,len);
+}
+function sub(start,len){ return subFrom(SEQ, start, len); }                 // original template
+function subMut(start,len){ return subFrom(mutatedSeq||SEQ, start, len); }  // mutation applied
+// 0-based indices a window covers (wrapped if circular) — for highlighting / mutation lookup
+function idxRange(start,len){
+  const L=SEQ.length, out=[];
+  for(let k=0;k<len;k++){ let i=start+k; if(isCirc()) i=mod(i,L); if(i>=0&&i<L) out.push(i); }
+  return out;
+}
+// forward distance a→b along the template (wraps if circular)
+function dist(a,b){ return isCirc()? mod(b-a,SEQ.length) : b-a; }
+function minFlankV(){ return Math.max(0,parseInt(v('minFlank'),10)||0); }
+function searchRangeV(){ return Math.max(0,parseInt(v('searchRange'),10)||0); }
+
+/* ---------- step 1 ---------- */
+$('loadbtn').onclick=()=>{
+  SEQ=v('seqinput').toUpperCase().replace(/[^ACGT]/g,'');
+  if(SEQ.length<20){ alert('Sequence too short (need ≥20 nt of ACGT).'); return; }
+  $('seqstats').textContent=`Loaded ${SEQ.length} nt · GC ${gcPct(SEQ)}% · ${Math.floor(SEQ.length/3)} codons`;
+  ['panel2','panel3','panelView'].forEach(p=>$(p).classList.remove('hidden'));
+  populateAA();
+  setMode();
+  renderSeq();
+};
+
+/* ---------- step 2: codon selection ---------- */
+function populateAA(){
+  const sel=$('newaa'); sel.innerHTML='';
+  for(const [a,name] of AA_ORDER){
+    const o=document.createElement('option');
+    o.value=a; o.textContent=`${name} (${a})`;
+    sel.appendChild(o);
+  }
+}
+function selectCodonByBase(j){
+  const f=frameIdx();
+  if(j<f) return;
+  selectCodon(Math.floor((j-f)/3)+1);
+}
+function selectCodon(num){
+  const f=frameIdx();
+  const cs=f+(num-1)*3;
+  if(cs<0 || cs+3>SEQ.length) return;
+  mutCodonNum=num; mutStart=cs;
+  $('codonnum').value=num;
+  const oc=SEQ.substr(cs,3);
+  $('origcodon').value=`${oc} (${CODON[oc]||'?'})`;
+  $('newaa').value=CODON[oc]||'A';
+  populateNewCodon();
+  renderSeq();
+}
+function populateNewCodon(){
+  const aa=$('newaa').value;
+  const oc=mutStart!==null?SEQ.substr(mutStart,3):'';
+  const list=(AA2CODON[aa]||[]).map(c=>({c,n:countDiff(c,oc)})).sort((a,b)=>a.n-b.n);
+  const sel=$('newcodon'); sel.innerHTML='';
+  for(const it of list){
+    const o=document.createElement('option');
+    o.value=it.c;
+    o.textContent=`${it.c} · ${it.n} change${it.n===1?'':'s'}${it.n===0?' (no change)':''}`;
+    sel.appendChild(o);
+  }
+  if(list.length){ sel.value=list[0].c; newCodon=list[0].c; }
+  applyMutation();
+}
+function applyMutation(){
+  if(mutStart===null || !newCodon){ return; }
+  mutatedSeq=SEQ.slice(0,mutStart)+newCodon+SEQ.slice(mutStart+3);
+  changedPos=[];
+  for(let k=0;k<3;k++) if(newCodon[k]!==SEQ[mutStart+k]) changedPos.push(mutStart+k);
+  const oc=SEQ.substr(mutStart,3), aaO=CODON[oc]||'?', aaN=CODON[newCodon]||'?';
+  const silent=aaO===aaN;
+  $('aaout').innerHTML=`Codon ${mutCodonNum}: <code>${oc}</code> (${aaO}) → <code>${newCodon}</code> (${aaN}) · `+
+    `<b>${aaO}${mutCodonNum}${aaN}</b>${silent?' [silent]':''} · `+
+    `${changedPos.length} base change${changedPos.length===1?'':'s'}`;
+  renderSeq();
+}
+$('frame').oninput=()=>{ if(mutCodonNum) selectCodon(mutCodonNum); else renderSeq(); };
+$('codonnum').oninput=()=>{ const n=parseInt(v('codonnum'),10); if(n>=1) selectCodon(n); };
+$('newaa').onchange=populateNewCodon;
+$('newcodon').onchange=()=>{ newCodon=$('newcodon').value; applyMutation(); };
+
+/* ---------- step 3: mode handling ---------- */
+const MODE_DESC={
+  gg:'Primers = [filler][site][spacer][4-nt overhang][annealing]. Overhangs are reverse-complements → Golden Gate re-circularization.',
+  gib:'Primers = pure template with overlapping 5′ ends (15–25 bp). The shared overlap lets Gibson assembly close the amplicon into a circle.',
+  simple:'Back-to-back flanking primers with no added DNA — plain inverse PCR. Product is blunt/linear (phosphorylate + ligate).'
+};
+function setMode(){
+  MODE=$('mode').value;
+  document.querySelectorAll('.gg-only').forEach(e=>e.classList.toggle('hidden',MODE!=='gg'));
+  document.querySelectorAll('.gib-only').forEach(e=>e.classList.toggle('hidden',MODE!=='gib'));
+  document.querySelectorAll('.simple-only').forEach(e=>e.classList.toggle('hidden',MODE!=='simple'));
+  $('modedesc').textContent=MODE_DESC[MODE];
+  const ext = MODE==='gib';
+  $('lblMinLen').textContent = ext?'Min 3′ extension length (nt)':'Min annealing length (nt)';
+  $('lblMaxLen').textContent = ext?'Max 3′ extension length (nt)':'Max annealing length (nt)';
+  $('lblTargetTm').textContent = ext?'Target Tm of 3′ extension (°C)':'Target annealing Tm (°C)';
+  $('lblLenF').textContent = ext?'Forward 3′ extension length':'Forward annealing length';
+  $('lblLenR').textContent = ext?'Reverse 3′ extension length':'Reverse annealing length';
+  $('lblSearch').textContent = MODE==='gg'?'Fusion-site search range (nt)':
+                               ext?'Overlap-position search range (nt)':'Junction search range (nt)';
+  $('legOh').textContent = MODE==='gg'?'4-nt Overhang':ext?'Gibson Overlap':'(no tail)';
+  design=null;
+  $('panel4').classList.add('hidden'); $('panel5').classList.add('hidden');
+  if(SEQ) renderSeq();
+}
+$('mode').onchange=setMode;
+
+$('designbtn').onclick=()=>{
+  if(mutStart===null){ alert('Select a codon (step 2).'); return; }
+  if(MODE!=='simple' && (!newCodon || changedPos.length===0)){
+    alert('Choose a new codon that differs from the original (step 2).'); return; }
+  if(MODE==='gg') buildGG();
+  else if(MODE==='gib') buildGibson();
+  else buildSimple();
+};
+
+/* shared: tune the annealing arms of a primer pair.
+   pF = template index where the forward annealing arm starts; pR = exclusive end of the reverse arm.
+   Tm is evaluated on the actual primer bases (mutation applied), i.e. the perfect-match Tm vs the
+   product strand synthesised in cycle 2+. Returns null if it runs off a linear end. */
+function tuneArm(direction, pos, c, target, minL, maxL){
+  let bestL=null;
+  for(let L=minL; L<=maxL; L++){
+    let arm;
+    if(direction==='F'){ arm=subMut(pos, L); }
+    else { const x=subMut(pos-L, L); arm = x?revcomp(x):null; }
+    if(arm===null) break;
+    bestL=L;
+    if(calcTm(arm,c)>=target) break;
+  }
+  return bestL;
+}
+function tuneBoth(pF,pR,side){
+  const c=cond(), target=+v('targetTm'), minL=+v('minLen'), maxL=+v('maxLen');
+  let lf=tuneArm('F', pF, c, target, minL, maxL);
+  let lr=tuneArm('R', pR, c, target, minL, maxL);
+  if(lf===null||lr===null) return null;
+  if(changedPos.length){
+    const lo=Math.min(...changedPos), hi=Math.max(...changedPos), mf=minFlankV();
+    // extend the mutation-bearing arm so there are >= minFlank matched bases 3' of the mutation too
+    if(side==='F') lf=Math.min(maxL, Math.max(lf, dist(pF,hi)+1+mf));
+    else if(side==='R') lr=Math.min(maxL, Math.max(lr, dist(lo,pR-1)+1+mf));
+  }
+  if(subMut(pF,lf)===null || subMut(pR-lr,lr)===null) return null;
+  return {lf,lr};
+}
+
+/* shared: render the candidate table + auto-pick first (candidates already ranked best-first) */
+function showCandidates(cands, head, rowHTML, title, intro){
+  const tb=$('regtable').querySelector('tbody'); tb.innerHTML='';
+  $('regtable').querySelector('thead').innerHTML='<tr>'+head.map(h=>`<th>${h}</th>`).join('')+'</tr>';
+  $('regtitle').textContent=title; $('regintro').innerHTML=intro;
+  cands.forEach((r,i)=>{
+    const tr=document.createElement('tr'); tr.className='cand';
+    tr.innerHTML=rowHTML(r,i);
+    tr.onclick=()=>selectReg(r,tr);
+    tb.appendChild(tr);
+  });
+  $('panel4').classList.remove('hidden');
+  selectReg(cands[0], tb.children[0]);
+}
+function selectReg(r, tr){
+  [...tr.parentNode.children].forEach(x=>x.classList.remove('sel'));
+  tr.classList.add('sel');
+  autoTuneAndRender(r);
+}
+function noCands(){
+  alert('No valid design near this codon. Mark the template circular (plasmid), widen the search range, '+
+        'relax the overlap / flank parameters, or pick a more internal codon.');
+}
+function tagList(flags){ return flags.length?flags.join(' '):'<span class="tag ok">OK</span>'; }
+
+/* ---------- Golden Gate candidates ---------- */
+// Scan clean 4-nt fusion sites (overhangs) flanking the mutation, on either side.
+// The overhang never overlaps a changed base; the mutation sits in the annealing
+// region of whichever primer is on the mutation side.
+function buildGG(){
+  const c=cond();
+  const lo=Math.min(...changedPos), hi=Math.max(...changedPos);
+  const circ=isCirc(), minL=+v('minLen'), L=SEQ.length;
+  const minFlank=minFlankV(), searchRange=searchRangeV();
+  const changedSet=new Set(changedPos);
+  const cands=[];
+  function add(vstart, side, gap){
+    const ohIdx=idxRange(vstart,4);
+    if(ohIdx.length<4) return;                       // ran off a linear end
+    if(ohIdx.some(i=>changedSet.has(i))) return;     // overhang must stay clean
+    if(!circ){                                       // need room for both arms
+      if(side==='F' && (vstart-minL<0)) return;
+      if(side==='R' && (vstart+4+minL>L)) return;
+    }
+    const oh=ohIdx.map(i=>SEQ[i]).join('');          // clean original template
+    cands.push({mode:'gg', v:vstart, side, gap, oh, pF:vstart+4, pR:vstart, ovStart:vstart, ovLen:4,
+      tm:calcTm(oh,c), dg:dG37(oh), gc:gcPct(oh), pal:isPalindrome(oh)});
+  }
+  // "gap" = matched bases between the fusion site and the mutation (the mutation's 5' flank in that
+  // primer). Start at minFlank so the mutation is clamped by matched sequence on its 5' side.
+  for(let gap=minFlank; gap<=minFlank+searchRange; gap++) add(lo-4-gap, 'F', gap);
+  for(let gap=minFlank; gap<=minFlank+searchRange; gap++) add(hi+1+gap, 'R', gap);
+  if(!cands.length){ noCands(); return; }
+  // rank: non-palindromic, then not extreme-GC, then smallest gap, then strongest (most-negative ΔG)
+  const ext=r=>(r.gc===0||r.gc===100)?1:0;
+  cands.sort((a,b)=>(a.pal-b.pal)||(ext(a)-ext(b))||(a.gap-b.gap)||(a.dg-b.dg));
+  showCandidates(cands,
+    ['Rank','Overhang (fwd / rev)','Mutation in','5′ flank','GC','Overhang Tm','ΔG°37','Flags'],
+    (r,i)=>{
+      const flags=[];
+      if(r.pal) flags.push('<span class="tag bad">Palindrome</span>');
+      if(r.gc===0||r.gc===100) flags.push('<span class="tag warn">Extreme GC</span>');
+      return `<td>${i+1}</td><td><code>${r.oh}</code> / <code>${revcomp(r.oh)}</code></td>
+        <td>${r.side==='F'?'Fwd':'Rev'} primer</td><td>${r.gap}</td><td>${r.gc}%</td>
+        <td>${r.tm.toFixed(1)} °C</td><td>${r.dg.toFixed(1)}</td><td>${tagList(flags)}</td>`;
+    },
+    'Choose fusion site (overhang)',
+    `Candidates are clean 4-nt fusion sites flanking the mutation on either side — the
+    forward/reverse overhangs are exact reverse-complements that re-circularize the amplicon. The mutation ends up in the annealing region of whichever primer is
+    on the mutation side, clamped by matched template on both sides. "5' flank" is the number of matched
+    bases between the fusion site and the mutation. Pick one (no palindrome, good overhang Tm/ΔG; a larger
+    5' flank centers the mutation more).`);
+}
+
+/* ---------- Gibson candidates ---------- */
+function gibParams(){
+  return { nMin:Math.max(4,parseInt(v('ovMin'),10)||15), nMax:Math.max(4,parseInt(v('ovMax'),10)||25),
+           tmMin:+v('ovTmMin'), tmMax:+v('ovTmMax'), gcMin:+v('ovGcMin'), gcMax:+v('ovGcMax'),
+           cap:v('ovCap'), place:v('gibPlace'), ovFlank:Math.max(0,parseInt(v('ovFlank'),10)||0) };
+}
+// Overlap window [s, s+n). Fwd primer = template[s ..], Rev primer = revcomp(template[.. s+n-1]); both 5' ends
+// sit on the overlap, so the linear product carries the overlap at both ends.
+//   type I : mutation INSIDE the overlap (both primers carry it)
+//   type F : overlap is wild-type, mutation lies in the forward primer's 3' extension
+//   type R : overlap is wild-type, mutation lies in the reverse primer's 3' extension
+function buildGibson(){
+  const c=cond(), circ=isCirc(), G=gibParams(), minL=+v('minLen');
+  const lo=Math.min(...changedPos), hi=Math.max(...changedPos);
+  const minFlank=minFlankV(), searchRange=searchRangeV();
+  const per={I:[],F:[],R:[]};
+  function consider(type,s,n,gap){
+    const ov=subMut(s,n); if(ov===null) return;
+    if(!circ && (subMut(s+n,minL)===null || subMut(s-minL,minL)===null)) return;
+    const tm=calcTm(ov,c), gc=100*gcFrac(ov);
+    const capF=isGC(ov[0]), capL=isGC(ov[n-1]);
+    const capOK = G.cap==='both'?(capF&&capL): G.cap==='last'?capL : true;
+    const viol=[];
+    if(tm<G.tmMin) viol.push('Tm low'); if(tm>G.tmMax) viol.push('Tm high');
+    if(gc<G.gcMin-1e-9) viol.push('GC low'); if(gc>G.gcMax+1e-9) viol.push('GC high');
+    if(!capOK) viol.push('No G/C cap');
+    const score=viol.length*100 + Math.abs(tm-(G.tmMin+G.tmMax)/2) + Math.abs(gc-50)/3 + (type==='I'?0:gap*0.2);
+    per[type].push({mode:'gib', type, side:type, s, n, gap, ov, tm, gc, capF, capL, capOK, viol, score,
+      pF:s+n, pR:s, ovStart:s, ovLen:n, dg:dG37(ov),
+      e5: type==='I'?lo-s:null, e3: type==='I'?(s+n-1)-hi:null});
+  }
+  for(let n=G.nMin;n<=G.nMax;n++){
+    if(G.place!=='out'){
+      for(let s=hi-n+1+G.ovFlank; s<=lo-G.ovFlank; s++) consider('I',s,n,0);
+    }
+    if(G.place!=='in'){
+      for(let gap=minFlank; gap<=minFlank+searchRange; gap++){
+        consider('F', lo-gap-n, n, gap);      // overlap ends `gap` bases before the mutation
+        consider('R', hi+1+gap, n, gap);      // overlap starts `gap` bases after the mutation
+      }
+    }
+  }
+  let cands=[];
+  for(const t of ['I','F','R']) cands=cands.concat(per[t].sort((a,b)=>a.score-b.score).slice(0,12));
+  if(!cands.length){ noCands(); return; }
+  cands.sort((a,b)=>a.score-b.score);
+  const label={I:'Overlap (both primers)',F:'Fwd 3′ extension',R:'Rev 3′ extension'};
+  showCandidates(cands,
+    ['Rank','Overlap (5′→3′, sense strand)','Len','Tm','GC','3′ cap','Mutation in','Edge dist.','Flags'],
+    (r,i)=>{
+      const ovHTML=`<code>${r.ov.slice(0,-1)}<span class="seg-cap">${r.ov.slice(-1)}</span></code>`;
+      const capTxt=`${r.ov[0]}…${r.ov[r.n-1]}`;
+      const flags=r.viol.map(x=>`<span class="tag ${x==='No G/C cap'?'warn':'bad'}">${x}</span>`);
+      if(!r.viol.length) flags.push('<span class="tag ok">Meets goals</span>');
+      const edge = r.type==='I' ? `5′ ${r.e5} / 3′ ${r.e3}` : `${r.gap}`;
+      return `<td>${i+1}</td><td>${ovHTML}</td><td>${r.n}</td><td>${r.tm.toFixed(1)} °C</td>
+        <td>${Math.round(r.gc)}%</td><td>${capTxt} ${r.capOK?'✓':'✗'}</td><td>${label[r.type]}</td><td>${edge}</td>
+        <td>${flags.join(' ')}</td>`;
+    },
+    'Choose Gibson overlap',
+    `Candidate overlaps (shared 5′ ends of both primers), ranked by how well they meet your goals —
+    <b>${G.nMin}–${G.nMax} bp, Tm ${G.tmMin}–${G.tmMax} °C, ${G.gcMin}–${G.gcMax}% GC, G/C cap at the 3′ end</b> —
+    then by closeness to the middle of the Tm range and 50 % GC. Up to 12 best per placement type are listed.
+    “Edge dist.” is the number of matched bases between the overlap edge and the mutation (mutation in the extension),
+    or the bases between mutation and each overlap end (mutation inside the overlap). Click a row to design primers around it.`);
+}
+
+/* ---------- Simple (flanking) candidates ---------- */
+function buildSimple(){
+  const c=cond(), circ=isCirc(), L=SEQ.length;
+  const minFlank=minFlankV(), searchRange=searchRangeV();
+  const spots=[];                                       // {j, side, gap}
+  if(changedPos.length){
+    const lo=Math.min(...changedPos), hi=Math.max(...changedPos);
+    for(let gap=minFlank; gap<=minFlank+searchRange; gap++){
+      spots.push({j:lo-gap, side:'F', gap});            // junction 5' of mutation → mutation in fwd primer
+      spots.push({j:hi+1+gap, side:'R', gap});          // junction 3' of mutation → mutation in rev primer
+    }
+  } else {
+    for(let k=0;k<=3;k++) spots.push({j:mutStart+k, side:'N', gap:k});   // no mutation: junctions across the codon
+  }
+  const cands=[];
+  for(const sp of spots){
+    const tb=tuneBoth(sp.j,sp.j,sp.side); if(!tb) continue;
+    const annF=subMut(sp.j,tb.lf), annR=revcomp(subMut(sp.j-tb.lr,tb.lr));
+    const tmF=calcTm(annF,c), tmR=calcTm(annR,c);
+    const clF=isGC(annF[annF.length-1]), clR=isGC(annR[annR.length-1]);
+    const dTm=Math.abs(tmF-tmR);
+    cands.push({mode:'simple', side:sp.side, gap:sp.gap, j:sp.j, pF:sp.j, pR:sp.j, ovStart:sp.j, ovLen:0,
+      lf:tb.lf, lr:tb.lr, tmF, tmR, dTm, clF, clR,
+      score:(clF?0:2)+(clR?0:2)+dTm+sp.gap*0.3});
+  }
+  if(!cands.length){ noCands(); return; }
+  cands.sort((a,b)=>a.score-b.score);
+  showCandidates(cands,
+    ['Rank','Junction (nt | nt)','Mutation in','5′ flank','Fwd len / Tm','Rev len / Tm','ΔTm','3′ clamp F / R','Flags'],
+    (r,i)=>{
+      const flags=[];
+      if(r.dTm>3) flags.push('<span class="tag warn">ΔTm &gt; 3</span>');
+      if(!r.clF||!r.clR) flags.push('<span class="tag warn">No 3′ G/C</span>');
+      const mutIn = r.side==='N'?'— (no mutation)':(r.side==='F'?'Fwd':'Rev')+' primer';
+      return `<td>${i+1}</td><td>${mod(r.j-1,L)+1} | ${mod(r.j,L)+1}</td><td>${mutIn}</td>
+        <td>${r.side==='N'?'—':r.gap}</td>
+        <td>${r.lf} nt / ${r.tmF.toFixed(1)} °C</td><td>${r.lr} nt / ${r.tmR.toFixed(1)} °C</td>
+        <td>${r.dTm.toFixed(1)}</td><td>${r.clF?'✓':'✗'} / ${r.clR?'✓':'✗'}</td><td>${tagList(flags)}</td>`;
+    },
+    'Choose junction (flanking primers)',
+    `Each row is a junction where the two primers sit back-to-back (forward primer starts at the junction and reads right;
+    reverse primer ends at the junction and reads left). No restriction sites or overlaps are added. Ranked by 3′ G/C clamps,
+    forward/reverse Tm match, and smallest 5′ flank. ${changedPos.length?'“5′ flank” = matched bases between the junction and the mutation.':
+    'No mutation selected: junctions across the chosen codon are listed.'}`);
+}
+
+/* ---------- tune + render ---------- */
+function autoTuneAndRender(r){
+  const tb=tuneBoth(r.pF, r.pR, r.side);
+  if(!tb){
+    alert('Not enough flanking template for the annealing arms at this site (linear template near an end). '+
+          'Mark the template circular or choose a more internal codon.'); return; }
+  $('lenF').value=tb.lf; $('lenR').value=tb.lr;
+  design={mode:r.mode, side:r.side, pF:r.pF, pR:r.pR, ovStart:r.ovStart, ovLen:r.ovLen};
+  renderPrimers();
+  $('panel5').classList.remove('hidden');
+}
+$('lenF').oninput=renderPrimers;
+$('lenR').oninput=renderPrimers;
+
+function renderPrimers(){
+  if(!design) return;
+  const c=cond(), d=design;
+  const lenF=Math.max(2,+v('lenF')), lenR=Math.max(2,+v('lenR'));
+  const annF=subMut(d.pF,lenF)||'', tmF=calcTm(annF,c);
+  const rRaw=subMut(d.pR-lenR,lenR), annR=rRaw?revcomp(rRaw):'', tmR=calcTm(annR,c);
+  const idxF=idxRange(d.pF,lenF), idxR=idxRange(d.pR-lenR,lenR).reverse();
+
+  let segF=[], segR=[], tailIdxF=[], tailIdxR=[], extra='', legend='', note='';
+  if(d.mode==='gg'){
+    const filler=v('filler').toUpperCase().replace(/[^ACGT]/g,'');
+    const site=v('site').toUpperCase().replace(/[^ACGT]/g,'');
+    const spacer=v('spacer').toUpperCase().replace(/[^ACGT]/g,'');
+    const oh=sub(d.ovStart,4), ohR=revcomp(oh);
+    const mk=o=>[{cls:'seg-filler',text:filler},{cls:'seg-site',text:site},{cls:'seg-spacer',text:spacer},{cls:'seg-oh',text:o}];
+    segF=mk(oh); segR=mk(ohR);
+    extra=`<span class="stat">Overhang Tm <b>${calcTm(oh,c).toFixed(1)} °C</b></span>`+
+          `<span class="stat">Overhang ΔG°37 <b>${dG37(oh).toFixed(1)} kcal/mol</b></span>`;
+    legend=`<span><i class="chip" style="background:var(--muted)"></i>Filler</span>
+      <span><i class="chip" style="background:var(--purple)"></i>Recognition site</span>
+      <span><i class="chip" style="background:#7d8aa0"></i>Spacer</span>
+      <span><i class="chip" style="background:var(--blue)"></i>Overhang</span>`;
+  } else if(d.mode==='gib'){
+    const n=d.ovLen, ov=subMut(d.ovStart,n)||'', ovIdx=idxRange(d.ovStart,n);
+    segF=[{cls:'seg-ov',text:ov,idx:ovIdx}];
+    segR=[{cls:'seg-ov',text:revcomp(ov),idx:ovIdx.slice().reverse()}];
+    tailIdxF=ovIdx; tailIdxR=ovIdx.slice().reverse();
+    const G=gibParams(), tm=calcTm(ov,c), gc=100*gcFrac(ov);
+    const capF=isGC(ov[0]), capL=isGC(ov[n-1]);
+    const capOK=G.cap==='both'?(capF&&capL):G.cap==='last'?capL:true;
+    const okLen=n>=G.nMin&&n<=G.nMax, okTm=tm>=G.tmMin&&tm<=G.tmMax, okGc=gc>=G.gcMin-1e-9&&gc<=G.gcMax+1e-9;
+    const t=(ok,txt)=>`<span class="tag ${ok?'ok':'bad'}">${txt}</span>`;
+    extra=`<span class="stat">Overlap <b>${n} bp</b> ${t(okLen,okLen?'in range':'out of range')}</span>`+
+          `<span class="stat">Overlap Tm <b>${tm.toFixed(1)} °C</b> ${t(okTm,okTm?'in range':'out of range')}</span>`+
+          `<span class="stat">Overlap GC <b>${Math.round(gc)}%</b> ${t(okGc,okGc?'in range':'out of range')}</span>`+
+          `<span class="stat">G/C cap <b>${ov[0]}…${ov[n-1]}</b> ${t(capOK,capOK?'✓':'missing')}</span>`+
+          `<span class="stat">Overlap ΔG°37 <b>${dG37(ov).toFixed(1)} kcal/mol</b></span>`;
+    legend=`<span><i class="chip" style="background:var(--blue)"></i>Gibson overlap (shared 5′ end)</span>`;
+    note=`<div class="infobox"><b>Gibson overlap:</b> <code>${ov}</code> (${n} bp) is shared by the 5′ ends of both primers
+      (reverse-complemented in the reverse primer), so the linear amplicon carries it at both termini. DpnI-digest the
+      template, gel/column-purify the product and assemble with Gibson master mix (typically 50 °C, 15–60 min).
+      ${d.side==='I'?'The mutation lies inside the overlap, so both primers carry it.':
+       'The overlap is wild-type; the mutation is in the '+(d.side==='F'?'forward':'reverse')+' primer’s 3′ extension.'}</div>`;
+  } else {
+    note=`<div class="infobox"><b>Simple inverse PCR:</b> primers are back-to-back with no added DNA, giving a blunt linear product.
+      Order primers with a 5′ phosphate (or treat the product with PNK), DpnI-digest the template and re-circularize with
+      T4 DNA ligase / KLD mix.</div>`;
+    legend='';
+  }
+  segF=segF.concat([{cls:'seg-anneal',text:annF,idx:idxF}]);
+  segR=segR.concat([{cls:'seg-anneal',text:annR,idx:idxR}]);
+  const annLabel = d.mode==='gib'?'3′ extension (unique)':'Annealing';
+  const matchF=tailIdxF.concat(idxF), matchR=tailIdxR.concat(idxR);
+  const carryF=matchF.some(i=>changedPos.includes(i)), carryR=matchR.some(i=>changedPos.includes(i));
+
+  $('cardF').innerHTML=primerCard('Forward primer'+(carryF?' — carries the mutation':(changedPos.length?' (clean)':'')),
+     segF, annF, tmF, annLabel, matchF, extra, legend, carryF);
+  $('cardR').innerHTML=primerCard('Reverse primer'+(carryR?' — carries the mutation':(changedPos.length?' (clean)':'')),
+     segR, annR, tmR, annLabel, matchR, extra, legend, carryR);
+  $('modenote').innerHTML=note;
+
+  const full=segs=>segs.map(s=>s.text).join('');
+  const fSeq=full(segF), rSeq=full(segR);
+  const tagm = {gg:'GoldenGate',gib:'Gibson',simple:'Simple'}[d.mode];
+  const ph = d.mode==='simple' ? ' (order with 5\' phosphate)' : '';
+  $('orderfmt').textContent=
+    `>Forward_${tagm} len=${fSeq.length}nt anneal_Tm=${tmF.toFixed(1)}C${ph}\n${fSeq}\n`+
+    `>Reverse_${tagm} len=${rSeq.length}nt anneal_Tm=${tmR.toFixed(1)}C${ph}\n${rSeq}\n`;
+  renderSeq();
+}
+function primerCard(title,segs,ann,tm,annLabel,matchIdx,extra,legend,carriesMut){
+  const changedSet=new Set(changedPos);
+  let body='', full='';
+  for(const s of segs){
+    full+=s.text;
+    let h='';
+    for(let i=0;i<s.text.length;i++)
+      h += (s.idx && changedSet.has(s.idx[i]))?`<span class="seg-mut">${s.text[i]}</span>`:s.text[i];
+    body+=`<span class="${s.cls}">${h}</span>`;
+  }
+  let warn='';
+  if(tm < (+v('targetTm'))-5)
+    warn+=`<div class="warnbox">${annLabel} Tm (${tm.toFixed(1)} °C) is well below target — lengthen this arm.</div>`;
+  // matched flanks on each side of the mutation within the template-matching part of the primer
+  let flankStat='';
+  const offs=[]; matchIdx.forEach((ix,k)=>{ if(changedSet.has(ix)) offs.push(k); });
+  if(offs.length){
+    const five=Math.min(...offs), three=matchIdx.length-Math.max(...offs)-1;
+    const mf=minFlankV(), minFive=MODE==='gib'?gibParams().ovFlank:mf;
+    flankStat=`<span class="stat">5′ matched flank <b>${five} nt</b></span>`+
+              `<span class="stat">3′ matched flank <b>${three} nt</b></span>`;
+    if(five<minFive||three<mf)
+      warn+=`<div class="warnbox">Mutation has ${five} nt (5′) / ${three} nt (3′) of matched flank — below your minimum (${minFive} / ${mf} nt), so the mismatched primer may anneal poorly. Lengthen this arm or choose a different site.</div>`;
+  }
+  const lastGC=isGC(ann[ann.length-1]);
+  return `<h3>${title}
+      <button class="copybtn" onclick="navigator.clipboard.writeText('${full}')">copy</button></h3>
+    <div class="primerout">${body}</div>
+    <div style="margin-top:8px">
+      <span class="stat">Total length <b>${full.length} nt</b></span>
+      <span class="stat">${annLabel} <b>${ann.length} nt</b></span>
+      <span class="stat">${annLabel} Tm <b>${tm.toFixed(1)} °C</b></span>
+      <span class="stat">${annLabel} GC <b>${gcPct(ann)}%</b></span>
+      <span class="stat">3′ end <b>${ann[ann.length-1]}</b> ${lastGC?'<span class="tag ok">G/C clamp</span>':'<span class="tag warn">no clamp</span>'}</span>
+      ${flankStat}
+      ${extra}
+    </div>
+    <div class="legend" style="margin-top:8px">${legend}
+      <span><i class="chip" style="background:var(--green)"></i>${annLabel} (mutation underlined)</span>
+    </div>${warn}`;
+}
+
+/* ---------- sequence viewer with translation track ---------- */
+function renderSeq(){
+  const box=$('seqview'); const per=60; const f=frameIdx();
+  const changedSet=new Set(changedPos);
+  let ohSet=null,fSet=null,rSet=null;
+  if(design){
+    ohSet=new Set(idxRange(design.ovStart,design.ovLen));
+    fSet=new Set(idxRange(design.pF, +v('lenF')));
+    rSet=new Set(idxRange(design.pR-(+v('lenR')), +v('lenR')));
+  }
+  let html='';
+  for(let i=0;i<SEQ.length;i+=per){
+    let aLine='<span class="num"></span>';
+    let bLine=`<span class="num">${i+1}</span>`;
+    const end=Math.min(i+per,SEQ.length);
+    for(let j=i;j<end;j++){
+      // amino-acid track: residue letter + number, centered over the middle base of each codon
+      let cell='<span class="aa"> </span>';
+      if(j>=f && (j-f)%3===1){
+        const cs=j-1;
+        if(cs>=f && cs+3<=SEQ.length){
+          const resNum=(cs-f)/3+1;
+          const aa=CODON[SEQ.substr(cs,3)]||'?';
+          let acls='aa';
+          if(mutStart!==null && cs===mutStart) acls+=' aacur';
+          if(changedPos.some(p=>p>=cs&&p<cs+3)) acls+=' aamut';
+          cell=`<span class="${acls}">${aa}<span class="rn">${resNum}</span></span>`;
+        }
+      }
+      aLine+=cell;
+      // base track
+      let cls='base';
+      if(changedSet.has(j)) cls+=' b-mut';
+      else if(ohSet&&ohSet.has(j)) cls+=' b-oh';
+      else if(fSet&&fSet.has(j)) cls+=' b-fwd';
+      else if(rSet&&rSet.has(j)) cls+=' b-rev';
+      else if(mutStart!==null && j>=mutStart && j<mutStart+3) cls+=' b-codon';
+      bLine+=`<span class="${cls}" data-i="${j}">${SEQ[j]}</span>`;
+    }
+    html+=`<div class="seqline aatrack">${aLine}</div><div class="seqline baseline">${bLine}</div>`;
+  }
+  box.innerHTML=html;
+  box.querySelectorAll('.base').forEach(el=>el.onclick=()=>selectCodonByBase(+el.dataset.i));
+}
+</script>
+</body>
+</html>
